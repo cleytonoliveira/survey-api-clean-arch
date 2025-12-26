@@ -1,10 +1,5 @@
-import { Encrypter } from './dbCreateAccountProtocols'
+import { Encrypter, CreateAccountRepository, CreateAccountModel, AccountModel } from './dbCreateAccountProtocols'
 import { DbCreateAccount } from './dbCreateAccount'
-
-interface SutTypes {
-  sut: DbCreateAccount
-  encrypterStub: Encrypter
-}
 
 const makeEncrypter = (): Encrypter => {
   class EncrypterStub implements Encrypter {
@@ -15,12 +10,35 @@ const makeEncrypter = (): Encrypter => {
   return new EncrypterStub()
 }
 
+const makeCreateAccountRepository = (): CreateAccountRepository => {
+  class CreateAccountRepositoryStub implements CreateAccountRepository {
+    async create (accountData: CreateAccountModel): Promise<AccountModel> {
+      const fakeAccount = {
+        id: 'valid_id',
+        name: 'valid_name',
+        email: 'valid_email@mail.com',
+        password: 'hashed_password'
+      }
+      return new Promise(resolve => resolve(fakeAccount))
+    }
+  }
+  return new CreateAccountRepositoryStub()
+}
+
+interface SutTypes {
+  sut: DbCreateAccount
+  encrypterStub: Encrypter
+  createAccountRepositoryStub: CreateAccountRepository
+}
+
 const makeSut = (): SutTypes => {
   const encrypterStub = makeEncrypter()
-  const sut = new DbCreateAccount(encrypterStub)
+  const createAccountRepositoryStub = makeCreateAccountRepository()
+  const sut = new DbCreateAccount(encrypterStub, createAccountRepositoryStub)
   return {
     sut,
-    encrypterStub
+    encrypterStub,
+    createAccountRepositoryStub
   }
 }
 
@@ -47,5 +65,21 @@ describe('DbCreateAccount Usecase', () => {
     }
     const promise = sut.create(accountData)
     await expect(promise).rejects.toThrow()
+  })
+
+  test('should call CreateAccountRepository with correct values', async () => {
+    const { sut, createAccountRepositoryStub } = makeSut()
+    const createSpy = jest.spyOn(createAccountRepositoryStub, 'create')
+    const accountData = {
+      name: 'valid_name',
+      email: 'valid_email@mail.com',
+      password: 'valid_password'
+    }
+    await sut.create(accountData)
+    expect(createSpy).toHaveBeenCalledWith({
+      name: 'valid_name',
+      email: 'valid_email@mail.com',
+      password: 'hashed_password'
+    })
   })
 })
